@@ -13,24 +13,18 @@ export type OpenedFile =
   | { kind: "scene"; name: string; scene: TabScene; handle: any }
   | { kind: "library"; name: string; items: LibraryItem[]; handle: any };
 
-const PICKER_TYPES = [
-  {
-    description: "Proyectos elograph y archivos de Excalidraw",
-    accept: {
-      "application/json": [".cdsgn", ".pdisg", ".excalidraw", ".excalidrawlib", ".json"],
-    },
-  },
-];
-
 export const INVALID_MESSAGE =
   "El archivo seleccionado no es un proyecto elograph (.cdsgn), un lienzo (.excalidraw) ni una librería (.excalidrawlib) válidos.";
+
+export const OPEN_ACCEPT =
+  ".pdisg,.cdsgn,.excalidraw,.excalidrawlib,.json,application/json";
 
 function nameFrom(fileName: string): string {
   const base = fileName.replace(/\.(excalidrawlib|excalidraw|cdsgn|pdisg|json)$/i, "").trim();
   return base || "Importado";
 }
 
-export function parseOpenedFile(text: string, fileName: string, handle: any): OpenedFile | null {
+export function parseOpenedFile(text: string, fileName: string, handle: any = null): OpenedFile | null {
   let data: any;
   try {
     // Algunos editores guardan el JSON con BOM; JSON.parse no lo tolera.
@@ -58,48 +52,30 @@ export function parseOpenedFile(text: string, fileName: string, handle: any): Op
   return null;
 }
 
-export async function openProjectFile(): Promise<OpenedFile | null> {
-  try {
-    if ("showOpenFilePicker" in window) {
-      const [handle] = await (window as any).showOpenFilePicker({ types: PICKER_TYPES, multiple: false });
-      const file = await handle.getFile();
-      const text = await file.text();
-      const result = parseOpenedFile(text, file.name, handle);
-      if (!result) alert(INVALID_MESSAGE);
-      return result;
-    }
-  } catch (e) {
-    if ((e as any)?.name === "AbortError") return null;
-  }
-  // fallback
-  return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".pdisg,.cdsgn,.excalidraw,.excalidrawlib,.json,application/json";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return resolve(null);
-      const text = await file.text();
-      const result = parseOpenedFile(text, file.name, null);
-      if (!result) alert(INVALID_MESSAGE);
-      resolve(result);
-    };
-    input.click();
-  });
+/** Lee un archivo del dispositivo. Funciona en cualquier navegador. */
+export async function readOpenedFile(file: File): Promise<OpenedFile | null> {
+  const text = await file.text();
+  return parseOpenedFile(text, file.name, null);
 }
 
+/** Guarda el proyecto. Usa el diálogo nativo si está disponible; si no, descarga el archivo. */
 export async function saveProjectFile(project: Project, handle: any): Promise<any> {
   const data = JSON.stringify(project, null, 2);
   const blob = new Blob([data], { type: "application/json" });
 
-  if (handle && "createWritable" in handle) {
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return handle;
+  // Guardar sobre el archivo ya elegido (solo escritorio con API disponible).
+  if (handle && typeof handle.createWritable === "function") {
+    try {
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return handle;
+    } catch {
+      // Si falla, se continúa con la descarga.
+    }
   }
 
-  if ("showSaveFilePicker" in window) {
+  if (typeof (window as any).showSaveFilePicker === "function") {
     try {
       const newHandle = await (window as any).showSaveFilePicker({
         suggestedName: `${project.meta.title || "proyecto"}.cdsgn`,
@@ -111,10 +87,11 @@ export async function saveProjectFile(project: Project, handle: any): Promise<an
       return newHandle;
     } catch (e) {
       if ((e as any)?.name === "AbortError") return handle;
+      // Otros errores: se continúa con la descarga.
     }
   }
 
-  // fallback download
+  // Descarga: camino universal (móvil, Safari, Firefox, iframe…).
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -122,6 +99,6 @@ export async function saveProjectFile(project: Project, handle: any): Promise<an
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   return handle;
 }

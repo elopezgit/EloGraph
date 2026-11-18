@@ -14,6 +14,12 @@ export default function App() {
   const initProject = useDocumentStore((s) => s.initProject);
   const setDirty = useDocumentStore((s) => s.setDirty);
   const [aiOpen, setAiOpen] = useState(false);
+  const [dropStatus, setDropStatus] = useState("");
+
+  const notifyDrop = (message: string) => {
+    setDropStatus(message);
+    window.setTimeout(() => setDropStatus((current) => (current === message ? "" : current)), 6000);
+  };
 
   useEffect(() => {
     (async () => {
@@ -63,7 +69,9 @@ export default function App() {
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     e.preventDefault();
-    void openDroppedFile(file).catch(() => {});
+    void openDroppedFile(file)
+      .then(notifyDrop)
+      .catch((err: any) => notifyDrop("No se pudo abrir el archivo: " + ((err as any)?.message || "error desconocido")));
   };
 
   return (
@@ -77,6 +85,14 @@ export default function App() {
         <SidePanel />
       </div>
       <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} />
+      {dropStatus && (
+        <div
+          role="status"
+          className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 max-w-lg px-3 py-2 rounded shadow bg-blue-700 text-white text-xs"
+        >
+          {dropStatus}
+        </div>
+      )}
       <footer className="text-xs text-gray-400 px-3 py-1 border-t">
         {project.tabs.length} pestaña(s) · {project.catalogs.length} catálogo(s)
       </footer>

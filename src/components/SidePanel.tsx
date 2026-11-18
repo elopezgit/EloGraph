@@ -161,7 +161,7 @@ export function SidePanel() {
   };
 
   const openExcalidrawLibrary = () => {
-    if (!api) return alert("Canvas no disponible");
+    if (!api) { setLibraryStatus("Canvas no disponible"); return; }
     void api.updateLibrary({ libraryItems: [], merge: true, openLibraryMenu: true });
   };
 
@@ -185,7 +185,7 @@ export function SidePanel() {
   }, []);
 
   const insertAt = (elements: any[], selectedIds: string[], pt?: { x: number; y: number }) => {
-    if (!api) { alert("Canvas no disponible"); return; }
+    if (!api) { setLibraryStatus("Canvas no disponible"); return; }
     try {
       const existing = api.getSceneElements() || [];
       const appState = api.getAppState() || {};
@@ -199,7 +199,7 @@ export function SidePanel() {
       });
     } catch (err) {
       console.error("insert error", err);
-      alert("Error al insertar: " + (err as any)?.message);
+      setLibraryStatus("Error al insertar: " + ((err as any)?.message || ""));
     }
   };
 
@@ -744,7 +744,7 @@ export function SidePanel() {
     const appState = api.getAppState();
     const selected = appState.selectedElementIds || {};
     const chosen = els.filter((e: any) => selected[e.id]);
-    if (chosen.length === 0) return alert("Selecciona elementos primero");
+    if (chosen.length === 0) { setLibraryStatus("Selecciona elementos primero"); return; }
     const blob = new Blob([JSON.stringify({ type: "excalidrawlib", version: 2, source: "elograph", libraryItems: [{ id: uid(), status: "published", elements: chosen }] }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -765,12 +765,12 @@ export function SidePanel() {
       try {
         const data = JSON.parse(text.replace(/^\uFEFF/, ""));
         const items = libraryItemsFromData(data);
-        if (!items.length) return alert("Sin elementos");
+        if (!items.length) { setLibraryStatus("Sin elementos en la librería"); return; }
         await integrateLibrary({ name: f.name.replace(/\.(excalidrawlib|json)$/i, ""), items, api });
         refreshFixedLibs();
         setLibraryStatus(`«${f.name}» integrada como librería fija (${items.length} pieza(s))`);
       } catch (err) {
-        alert("Archivo inválido: " + ((err as any)?.message || ""));
+        setLibraryStatus("Archivo inválido: " + ((err as any)?.message || ""));
       }
     };
     input.click();
@@ -828,7 +828,7 @@ export function SidePanel() {
   );
 
   const insertImageFromFile = () => {
-    if (!api) return alert("Canvas no disponible");
+    if (!api) { setLibraryStatus("Canvas no disponible"); return; }
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
