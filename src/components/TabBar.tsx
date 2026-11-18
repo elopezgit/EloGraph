@@ -55,7 +55,7 @@ export function TabBar() {
           )}
         </div>
       ))}
-      <button onClick={addTab} className="px-2 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded">+ Pestaña</button>
+      <button onClick={() => addTab()} className="px-2 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded">+ Pestaña</button>
     </div>
   );
 }

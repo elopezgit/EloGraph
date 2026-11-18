@@ -10,7 +10,7 @@ const emptyScene = (): TabData["scene"] => ({
 });
 
 const newProject = (title = "Sin título"): Project => ({
-  format: "censysdesigne",
+  format: "elograph",
   version: "1.0",
   meta: { title, created: new Date().toISOString(), modified: new Date().toISOString() },
   tabs: [{ id: uid(), name: "Página 1", scene: emptyScene() }],
@@ -28,7 +28,7 @@ interface Store {
   setFileHandle: (h: any) => void;
   setDirty: (d: boolean) => void;
 
-  addTab: () => void;
+  addTab: (options?: { name?: string; scene?: TabData["scene"] }) => void;
   removeTab: (id: string) => void;
   renameTab: (id: string, name: string) => void;
   setActiveTab: (id: string) => void;
@@ -62,9 +62,13 @@ export const useDocumentStore = create<Store>((set, get) => {
     setFileHandle: (h) => set({ fileHandle: h }),
     setDirty: (d) => set({ dirty: d }),
 
-    addTab: () => {
+    addTab: (options) => {
       const { project } = get();
-      const t: TabData = { id: uid(), name: `Página ${project.tabs.length + 1}`, scene: emptyScene() };
+      const t: TabData = {
+        id: uid(),
+        name: options?.name || `Página ${project.tabs.length + 1}`,
+        scene: options?.scene ?? emptyScene(),
+      };
       set({
         project: { ...project, tabs: [...project.tabs, t], activeTabId: t.id, meta: { ...project.meta, modified: new Date().toISOString() } },
         dirty: true,

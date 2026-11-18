@@ -22,7 +22,7 @@ export interface TabData {
 }
 
 export interface Project {
-  format: "censysdesigne";
+  format: "elograph";
   version: "1.0";
   meta: {
     title: string;

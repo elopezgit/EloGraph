@@ -1,5 +1,16 @@
 import { useDocumentStore } from "../store/useDocumentStore";
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
+import { PieceThumb, PanelIcon } from "./PieceThumb";
+import { DRAG_MIME, setPieceDrag, clearPieceDrag } from "../lib/dragPiece";
+import {
+  LIBRARY_SITE_URL,
+  fetchLibraryItems,
+  fetchRemoteCatalog,
+  isDirectLibraryUrl,
+  isLibrarySiteUrl,
+  isValidLibraryUrl,
+  type RemoteLibrary,
+} from "../lib/libraryUrl";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -99,15 +110,25 @@ export function SidePanel() {
   const removeCatalogItem = useDocumentStore((s) => s.removeCatalogItem);
 
   const api = activeTab ? excalidrawApis[activeTab.id] : null;
-  const [catalogOpen, setCatalogOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(true);
   const [search, setSearch] = useState("");
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({
     "UML Estructural": true,
-    "UML Comportamiento": true,
-    "Base de Datos": true,
+    "UML Comportamiento": false,
+    "Base de Datos": false,
     "Procesos / BPMN": false,
-    "General": true,
+    "Flechas y relaciones": false,
+    "General": false,
+    "Plantillas": false,
+    "Biblioteca": false,
+    "Catálogos": false,
   });
+  const [libraryUrl, setLibraryUrl] = useState("");
+  const [remoteLibs, setRemoteLibs] = useState<RemoteLibrary[] | null>(null);
+  const [remoteSearch, setRemoteSearch] = useState("");
+  const [libraryStatus, setLibraryStatus] = useState("");
+  const [libraryLoading, setLibraryLoading] = useState(false);
 
   const insertAt = (elements: any[], selectedIds: string[], pt?: { x: number; y: number }) => {
     if (!api) { alert("Canvas no disponible"); return; }
@@ -670,11 +691,11 @@ export function SidePanel() {
     const selected = appState.selectedElementIds || {};
     const chosen = els.filter((e: any) => selected[e.id]);
     if (chosen.length === 0) return alert("Selecciona elementos primero");
-    const blob = new Blob([JSON.stringify({ type: "excalidrawlib", version: 2, source: "procdisg", libraryItems: [{ id: uid(), status: "published", elements: chosen }] }, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify({ type: "excalidrawlib", version: 2, source: "elograph", libraryItems: [{ id: uid(), status: "published", elements: chosen }] }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "procdisg-library.excalidrawlib";
+    a.download = "elograph-library.excalidrawlib";
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -705,27 +726,64 @@ export function SidePanel() {
     input.click();
   };
 
-  // ---------- Herramientas nativas de Excalidraw ----------
-
-  const nativeTools = [
-    { name: "Selección", icon: "↖", type: "selection" },
-    { name: "Rectángulo", icon: "▭", type: "rectangle" },
-    { name: "Diamante", icon: "◇", type: "diamond" },
-    { name: "Elipse", icon: "⬭", type: "ellipse" },
-    { name: "Flecha", icon: "→", type: "arrow" },
-    { name: "Línea", icon: "—", type: "line" },
-    { name: "Freedraw", icon: "✎", type: "freedraw" },
-    { name: "Texto", icon: "T", type: "text" },
-    { name: "Imagen", icon: "🖼", type: "image" },
-    { name: "Eraser", icon: "⌫", type: "eraser" },
-    { name: "Frame", icon: "▭", type: "frame" },
-    { name: "Mano", icon: "✋", type: "hand" },
-  ];
-
-  const activateTool = (type: string) => {
-    if (!api) return alert("Canvas no disponible");
-    api.setActiveTool({ type } as any);
+  const addRemoteLibrary = async (url: string, name: string) => {
+    if (!api) {
+      setLibraryStatus("Canvas no disponible");
+      return;
+    }
+    setLibraryLoading(true);
+    setLibraryStatus("Descargando librería…");
+    try {
+      const items = await fetchLibraryItems(url);
+      await api.updateLibrary({
+        libraryItems: items,
+        merge: true,
+        defaultStatus: "published",
+        openLibraryMenu: true,
+      });
+      setLibraryStatus(`«${name}» agregada (${items.length} pieza(s))`);
+    } catch (err) {
+      setLibraryStatus("Error: " + ((err as any)?.message || "No se pudo importar"));
+    } finally {
+      setLibraryLoading(false);
+    }
   };
+
+  const loadLibraryFromUrl = async () => {
+    const value = libraryUrl.trim();
+    if (!value) {
+      setLibraryStatus("Pega una URL de librería para continuar");
+      return;
+    }
+    if (!isValidLibraryUrl(value)) {
+      setLibraryStatus("URL no válida");
+      return;
+    }
+    if (isDirectLibraryUrl(value)) {
+      await addRemoteLibrary(value, "Librería externa");
+      return;
+    }
+    if (isLibrarySiteUrl(value)) {
+      setLibraryLoading(true);
+      setLibraryStatus("Cargando catálogo de Excalidraw…");
+      try {
+        const list = await fetchRemoteCatalog();
+        setRemoteLibs(list);
+        setLibraryStatus(`Catálogo listo (${list.length} librerías). Elige una para agregarla.`);
+      } catch (err) {
+        setLibraryStatus("Error: " + ((err as any)?.message || "No se pudo leer el catálogo"));
+      } finally {
+        setLibraryLoading(false);
+      }
+      return;
+    }
+    // Otros enlaces: se intenta descargar directamente como librería
+    await addRemoteLibrary(value, "Librería externa");
+  };
+
+  const filteredRemoteLibs = remoteLibs?.filter((lib) =>
+    `${lib.name} ${lib.description}`.toLowerCase().includes(remoteSearch.toLowerCase())
+  );
 
   const insertImageFromFile = () => {
     if (!api) return alert("Canvas no disponible");
@@ -805,14 +863,10 @@ export function SidePanel() {
 
   // ---------- Categorías ----------
 
-  type ShapeItem = { name: string; icon: string; fn: () => void };
+  type ShapeItem = { name: string; icon: string; fn: (pt?: { x: number; y: number }) => void };
   type Category = { name: string; items: ShapeItem[] };
 
   const categories: Category[] = [
-    {
-      name: "Herramientas",
-      items: nativeTools.map((t) => ({ name: t.name, icon: t.icon, fn: () => activateTool(t.type) })),
-    },
     {
       name: "Imagen",
       items: [{ name: "Insertar imagen", icon: "🖼", fn: insertImageFromFile }],
@@ -886,6 +940,60 @@ export function SidePanel() {
     },
   ];
 
+  // Each category item name maps to the thumbnail shown in the library grid.
+  const thumbFor: Record<string, string> = {
+    "Selección": "selection",
+    "Rectángulo": "rectangle",
+    "Diamante": "diamond",
+    "Elipse": "ellipse",
+    "Flecha": "arrow",
+    "Línea": "line",
+    "Freedraw": "freedraw",
+    "Texto": "text",
+    "Imagen": "image",
+    "Eraser": "eraser",
+    "Frame": "frame",
+    "Mano": "hand",
+    "Insertar imagen": "image",
+    "Clase": "class",
+    "Clase abstracta": "abstractClass",
+    "Interfaz": "interface",
+    "Enumeración": "enum",
+    "Paquete": "package",
+    "Componente": "component",
+    "Nodo": "node",
+    "Objeto": "object",
+    "Caso de uso": "useCase",
+    "Actor": "actor",
+    "Sistema": "system",
+    "Lifeline": "lifeline",
+    "Activación": "activation",
+    "Fragmento": "fragment",
+    "Tabla": "table",
+    "Entidad": "entity",
+    "Entidad débil": "weakEntity",
+    "Relación": "relationship",
+    "Atributo": "attribute",
+    "Atributo clave": "keyAttribute",
+    "Vista": "view",
+    "Tarea": "task",
+    "Subproceso": "subprocess",
+    "Evento inicio": "startEvent",
+    "Evento fin": "endEvent",
+    "Evento intermedio": "intermediateEvent",
+    "Gateway XOR": "gatewayXor",
+    "Gateway AND": "gatewayPar",
+    "Pool": "pool",
+    "Asociación": "arrow",
+    "Composición": "composition",
+    "Agregación": "aggregation",
+    "Herencia": "inheritance",
+    "Realización": "realization",
+    "Dependencia": "dependency",
+    "Comentario": "comment",
+    "Nota": "note",
+  };
+
   const filtered = categories
     .map((c) => ({
       ...c,
@@ -893,133 +1001,258 @@ export function SidePanel() {
     }))
     .filter((c) => c.items.length > 0);
 
-  // drag & drop
-  const onDragStart = (e: any, fn: () => void) => {
-    (window as any).__procdisgDragFn = fn;
+  const toggleCat = (name: string) => setOpenCats((s) => ({ ...s, [name]: !s[name] }));
+
+  const onDragStart = (e: DragEvent<HTMLButtonElement>, item: ShapeItem) => {
+    setPieceDrag({ label: item.name, insert: item.fn });
     e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData(DRAG_MIME, item.name);
   };
-  const onDrop = (e: any) => {
-    e.preventDefault();
-    const fn = (window as any).__procdisgDragFn;
-    if (typeof fn === "function" && api) {
-      // re-invoke by calling fn (center). Drop position not applied in this version.
-      fn();
-    }
-  };
+  const onDragEnd = () => clearPieceDrag();
+
+  const templates = [
+    { name: "Diagrama de clases", fn: templateClass },
+    { name: "Modelo ER", fn: templateEr },
+    { name: "Casos de uso", fn: templateUseCase },
+    { name: "Secuencia", fn: templateSequence },
+    { name: "Proceso BPMN", fn: templateBpmn },
+  ];
+
+  const section = (name: string, count?: number) => (
+    <button className="lib-section-head" onClick={() => toggleCat(name)}>
+      <span className={`lib-chevron ${openCats[name] ? "is-open" : ""}`}>
+        <PanelIcon name="chevron" size={14} />
+      </span>
+      <span className="lib-section-name">{name}</span>
+      {count !== undefined && <span className="lib-count">{count}</span>}
+    </button>
+  );
 
   return (
-    <aside
-      className="w-72 border-l bg-white overflow-y-auto p-3 text-sm"
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={onDrop}
-    >
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Buscar shape..."
-        className="w-full border rounded px-2 py-1 text-xs mb-3"
-      />
-
-      {filtered.map((cat) => (
-        <div key={cat.name} className="mb-3">
-          <button
-            onClick={() => setOpenCats((s) => ({ ...s, [cat.name]: !s[cat.name] }))}
-            className="w-full flex items-center justify-between font-semibold text-gray-700 mb-1"
-          >
-            <span>{cat.name}</span>
-            <span className="text-gray-400 text-xs">{openCats[cat.name] ? "−" : "+"}</span>
+    <aside className={`lib-panel ${panelOpen ? "" : "lib-panel--collapsed"}`} onDragEnd={onDragEnd}>
+      <header className="lib-header">
+        {panelOpen && <span className="lib-title">Biblioteca</span>}
+        <div className="lib-header-actions">
+          <button className="lib-icon-btn" title="Buscar" onClick={() => setSearchOpen((v) => !v)}>
+            <PanelIcon name="search" size={16} />
           </button>
-          {openCats[cat.name] && (
-            <div className="grid grid-cols-2 gap-2">
-              {cat.items.map((it) => (
-                <button
-                  key={it.name}
-                  onClick={it.fn}
-                  draggable
-                  onDragStart={(e) => onDragStart(e, it.fn)}
-                  title={it.name}
-                  className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left flex items-center gap-1"
-                >
-                  <span>{it.icon}</span>
-                  <span className="truncate">{it.name}</span>
+          <button
+            className="lib-icon-btn"
+            title={panelOpen ? "Ocultar panel" : "Mostrar panel"}
+            onClick={() => setPanelOpen((v) => !v)}
+          >
+            <PanelIcon name="close" size={16} />
+          </button>
+        </div>
+      </header>
+
+      {panelOpen && (
+        <div className="lib-body">
+          {searchOpen && (
+            <div className="lib-search">
+              <PanelIcon name="search" size={15} />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar pieza..."
+                aria-label="Buscar pieza"
+              />
+              {search && (
+                <button className="lib-search-clear" title="Limpiar" onClick={() => setSearch("")}>
+                  <PanelIcon name="close" size={13} />
                 </button>
-              ))}
+              )}
             </div>
           )}
-        </div>
-      ))}
 
-      <h3 className="font-semibold mb-2 text-gray-700 mt-2">Plantillas</h3>
-      <div className="flex flex-col gap-2 mb-4">
-        <button onClick={templateClass} className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left">Diagrama de clases</button>
-        <button onClick={templateEr} className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left">Modelo ER</button>
-        <button onClick={templateUseCase} className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left">Casos de uso</button>
-        <button onClick={templateSequence} className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left">Secuencia</button>
-        <button onClick={templateBpmn} className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left">Proceso BPMN</button>
-      </div>
-
-      <h3 className="font-semibold mb-2 text-gray-700">Biblioteca</h3>
-      <div className="flex gap-2 mb-4">
-        <button onClick={exportLibrary} className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left flex-1">Exportar selección</button>
-        <button onClick={importLibrary} className="px-2 py-1.5 text-xs rounded border bg-gray-50 hover:bg-gray-100 text-left flex-1">Importar</button>
-      </div>
-
-      <div className="border-t pt-3">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-gray-700">Catálogos</h3>
-          <button onClick={addCatalog} className="text-blue-600 text-xs">+ Nuevo</button>
-        </div>
-        <button onClick={() => setCatalogOpen(!catalogOpen)} className="text-xs text-gray-500 mb-2">
-          {catalogOpen ? "Ocultar" : "Mostrar"}
-        </button>
-        {catalogOpen && (
-          <div className="space-y-3">
-            {project.catalogs.map((c) => (
-              <div key={c.id} className="border rounded p-2">
-                <div className="flex gap-1 mb-1">
-                  <input
-                    value={c.name}
-                    onChange={(e) => updateCatalog(c.id, { name: e.target.value })}
-                    className="border rounded px-1 py-0.5 text-xs flex-1"
-                  />
-                  <button onClick={() => removeCatalog(c.id)} className="text-red-500 text-xs">✕</button>
-                </div>
-                <div className="space-y-1">
-                  {c.items.map((it, idx) => (
-                    <div key={idx} className="flex gap-1">
-                      <input
-                        value={it.code}
-                        onChange={(e) => {
-                          const items = [...c.items];
-                          items[idx] = { ...items[idx], code: e.target.value };
-                          updateCatalog(c.id, { items });
-                        }}
-                        placeholder="código"
-                        className="border rounded px-1 py-0.5 text-xs w-20"
-                      />
-                      <input
-                        value={it.description}
-                        onChange={(e) => {
-                          const items = [...c.items];
-                          items[idx] = { ...items[idx], description: e.target.value };
-                          updateCatalog(c.id, { items });
-                        }}
-                        placeholder="descripción"
-                        className="border rounded px-1 py-0.5 text-xs flex-1"
-                      />
-                      <button onClick={() => removeCatalogItem(c.id, idx)} className="text-red-400 text-xs">✕</button>
-                    </div>
-                  ))}
-                </div>
-                <button onClick={() => addCatalogItem(c.id)} className="text-blue-600 text-xs mt-1">+ Item</button>
-              </div>
+          <div className="lib-scroll">
+            {filtered.map((cat) => (
+              <section className="lib-section" key={cat.name}>
+                {section(cat.name, cat.items.length)}
+                {openCats[cat.name] && (
+                  <div className="lib-grid">
+                    {cat.items.map((it) => (
+                      <button
+                        key={it.name}
+                        className="lib-tile"
+                        onClick={() => it.fn()}
+                        draggable
+                        onDragStart={(e) => onDragStart(e, it)}
+                        onDragEnd={onDragEnd}
+                        title={it.name}
+                      >
+                        <PieceThumb kind={thumbFor[it.name] ?? "class"} />
+                        <span className="lib-tile-plus"><PanelIcon name="plus" size={12} /></span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
             ))}
-            {project.catalogs.length === 0 && (
-              <p className="text-xs text-gray-400">Sin catálogos. Crea uno.</p>
+            {filtered.length === 0 && <p className="lib-empty">No se encontraron piezas.</p>}
+
+            {!search && (
+              <>
+                <section className="lib-section lib-section--extra">
+                  {section("Plantillas", templates.length)}
+                  {openCats["Plantillas"] && (
+                    <div className="lib-list">
+                      {templates.map((t) => (
+                        <button key={t.name} className="lib-list-item" onClick={t.fn}>
+                          <span className="lib-list-dot" />
+                          <span className="lib-list-label">{t.name}</span>
+                          <PanelIcon name="plus" size={13} />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="lib-section lib-section--extra">
+                  {section("Biblioteca")}
+                  {openCats["Biblioteca"] && (
+                    <>
+                      <div className="lib-two">
+                        <button className="lib-action" onClick={exportLibrary}>
+                          <PanelIcon name="export" size={14} /> Exportar
+                        </button>
+                        <button className="lib-action" onClick={importLibrary}>
+                          <PanelIcon name="import" size={14} /> Importar
+                        </button>
+                      </div>
+
+                      <div className="lib-url-box">
+                        <label className="lib-url-label" htmlFor="lib-url-input">
+                          Agregar lienzos desde URL
+                        </label>
+                        <div className="lib-url-row">
+                          <input
+                            id="lib-url-input"
+                            className="lib-input"
+                            value={libraryUrl}
+                            onChange={(e) => setLibraryUrl(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") void loadLibraryFromUrl();
+                            }}
+                            placeholder={LIBRARY_SITE_URL}
+                            spellCheck={false}
+                          />
+                          <button
+                            className="lib-url-btn"
+                            onClick={() => void loadLibraryFromUrl()}
+                            disabled={libraryLoading}
+                            title="Cargar librería desde URL"
+                          >
+                            <PanelIcon name="plus" size={14} />
+                          </button>
+                        </div>
+                        {libraryStatus && <p className="lib-url-status">{libraryStatus}</p>}
+
+                        {remoteLibs && (
+                          <div className="lib-remote">
+                            <input
+                              className="lib-input"
+                              value={remoteSearch}
+                              onChange={(e) => setRemoteSearch(e.target.value)}
+                              placeholder="Buscar librería…"
+                              aria-label="Buscar librería remota"
+                            />
+                            <div className="lib-remote-list">
+                              {(filteredRemoteLibs || []).map((lib) => (
+                                <button
+                                  key={lib.id}
+                                  className="lib-remote-item"
+                                  onClick={() => void addRemoteLibrary(lib.url, lib.name)}
+                                  disabled={libraryLoading}
+                                  title={lib.description || lib.name}
+                                >
+                                  {lib.preview && (
+                                    <img className="lib-remote-img" src={lib.preview} alt="" loading="lazy" />
+                                  )}
+                                  <span className="lib-list-label">{lib.name}</span>
+                                  <PanelIcon name="plus" size={13} />
+                                </button>
+                              ))}
+                              {filteredRemoteLibs?.length === 0 && (
+                                <p className="lib-empty">Sin coincidencias.</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </section>
+
+                <section className="lib-section lib-section--extra">
+                  <div className="lib-section-head-row">
+                    {section("Catálogos", project.catalogs.length)}
+                    <button
+                      className="lib-section-add"
+                      title="Nuevo catálogo"
+                      onClick={addCatalog}
+                    >
+                      <PanelIcon name="plus" size={13} />
+                    </button>
+                  </div>
+                  {openCats["Catálogos"] && (
+                    <div className="lib-catalogs">
+                      {project.catalogs.map((c) => (
+                        <div key={c.id} className="lib-catalog">
+                          <div className="lib-catalog-head">
+                            <input
+                              value={c.name}
+                              onChange={(e) => updateCatalog(c.id, { name: e.target.value })}
+                              className="lib-input"
+                              aria-label="Nombre del catálogo"
+                            />
+                            <button className="lib-mini-btn" title="Eliminar catálogo" onClick={() => removeCatalog(c.id)}>
+                              <PanelIcon name="trash" size={13} />
+                            </button>
+                          </div>
+                          <div className="lib-catalog-items">
+                            {c.items.map((it, idx) => (
+                              <div key={idx} className="lib-catalog-row">
+                                <input
+                                  value={it.code}
+                                  onChange={(e) => {
+                                    const items = [...c.items];
+                                    items[idx] = { ...items[idx], code: e.target.value };
+                                    updateCatalog(c.id, { items });
+                                  }}
+                                  placeholder="código"
+                                  className="lib-input lib-input--code"
+                                  aria-label="Código"
+                                />
+                                <input
+                                  value={it.description}
+                                  onChange={(e) => {
+                                    const items = [...c.items];
+                                    items[idx] = { ...items[idx], description: e.target.value };
+                                    updateCatalog(c.id, { items });
+                                  }}
+                                  placeholder="descripción"
+                                  className="lib-input"
+                                  aria-label="Descripción"
+                                />
+                                <button className="lib-mini-btn" title="Eliminar item" onClick={() => removeCatalogItem(c.id, idx)}>
+                                  <PanelIcon name="trash" size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <button className="lib-add-item" onClick={() => addCatalogItem(c.id)}>+ Item</button>
+                        </div>
+                      ))}
+                      {project.catalogs.length === 0 && <p className="lib-empty">Sin catálogos. Crea uno.</p>}
+                    </div>
+                  )}
+                </section>
+              </>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }

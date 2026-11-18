@@ -4,12 +4,13 @@ import { saveAutosave } from "../lib/autosave";
 import { exportToPdf, exportToPng, exportProjectToPdf } from "../lib/pdfExport";
 import { importExcelFile } from "../lib/excelImport";
 
-export function TopBar() {
+export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: () => void }) {
   const project = useDocumentStore((s) => s.project);
   const fileHandle = useDocumentStore((s) => s.fileHandle);
   const dirty = useDocumentStore((s) => s.dirty);
   const setFileHandle = useDocumentStore((s) => s.setFileHandle);
   const initProject = useDocumentStore((s) => s.initProject);
+  const addTab = useDocumentStore((s) => s.addTab);
   const setDirty = useDocumentStore((s) => s.setDirty);
   const getActiveTab = useDocumentStore((s) => s.getActiveTab);
   const excalidrawApis = useDocumentStore((s) => s.excalidrawApis);
@@ -26,8 +27,13 @@ export function TopBar() {
   const handleOpen = async () => {
     const res = await openProjectFile();
     if (!res) return;
-    initProject(res.project);
-    setFileHandle(res.handle);
+    if (res.kind === "project") {
+      initProject(res.project);
+      setFileHandle(res.handle);
+      return;
+    }
+    // Un .excalidraw es una sola escena: se añade como pestaña al proyecto actual
+    addTab({ name: res.name, scene: res.scene });
   };
 
   const handleSave = async () => {
@@ -56,9 +62,15 @@ export function TopBar() {
 
   return (
     <header className="flex items-center gap-2 px-3 py-2 border-b bg-white shadow-sm z-10">
-      <div className="font-bold text-lg text-blue-700 mr-2">CensysDesigne</div>
+      <div className="font-bold text-lg text-blue-700 mr-2">elograph</div>
       <button onClick={handleNew} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Nuevo</button>
-      <button onClick={handleOpen} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Abrir</button>
+      <button
+        onClick={handleOpen}
+        title="Abrir proyecto .cdsgn o lienzo de Excalidraw (.excalidraw)"
+        className="px-3 py-1.5 text-sm rounded hover:bg-gray-100"
+      >
+        Abrir
+      </button>
       <button onClick={handleSave} className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700">
         Guardar{dirty ? " •" : ""}
       </button>
@@ -66,6 +78,13 @@ export function TopBar() {
       <button onClick={handleExportPdf} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PDF</button>
       <button onClick={() => exportProjectToPdf(project)} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PDF (todas)</button>
       <button onClick={handleExportPng} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PNG</button>
+      <button
+        onClick={onToggleAi}
+        title="Interpretar el dibujo con IA y convertirlo en texto"
+        className={`px-3 py-1.5 text-sm rounded ${aiOpen ? "bg-blue-600 text-white hover:bg-blue-700" : "hover:bg-gray-100"}`}
+      >
+        IA
+      </button>
       <button
         onClick={() => {
           const input = document.createElement("input");
