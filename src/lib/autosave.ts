@@ -6,16 +6,31 @@ const LEGACY_DB = "procdisg";
 const STORE = "autosave";
 const KEY = "current";
 
-function openNamed(name: string) {
-  return openDB(name, 1, {
+/** Base de datos compartida por el autoguardado y los espacios de trabajo. */
+export function openAppDb() {
+  return openDB(DB, 2, {
     upgrade(d) {
       if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE);
+      if (!d.objectStoreNames.contains("workspaces")) {
+        d.createObjectStore("workspaces", { keyPath: "id" });
+      }
+    },
+  });
+}
+
+function openNamed(name: string) {
+  return openDB(name, 2, {
+    upgrade(d) {
+      if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE);
+      if (!d.objectStoreNames.contains("workspaces")) {
+        d.createObjectStore("workspaces", { keyPath: "id" });
+      }
     },
   });
 }
 
 function db() {
-  return openNamed(DB);
+  return openAppDb();
 }
 
 export async function saveAutosave(project: Project): Promise<void> {

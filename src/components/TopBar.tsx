@@ -9,10 +9,18 @@ import { applyOpenedFile, openRemoteFile } from "../lib/openFile";
 export function TopBar({
   aiOpen,
   onToggleAi,
+  reverseAiOpen,
+  onToggleReverseAi,
+  onOpenWorkspaces,
+  workspaceName,
   onLogout,
 }: {
   aiOpen: boolean;
   onToggleAi: () => void;
+  reverseAiOpen: boolean;
+  onToggleReverseAi: () => void;
+  onOpenWorkspaces: () => void;
+  workspaceName: string;
   onLogout: () => void;
 }) {
   const project = useDocumentStore((s) => s.project);
@@ -133,6 +141,13 @@ export function TopBar({
     <div>
       <header className="flex items-center gap-2 px-3 py-2 border-b bg-white shadow-sm z-10">
         <div className="font-bold text-lg text-blue-700 mr-2">elograph</div>
+        <button
+          onClick={onOpenWorkspaces}
+          title="Gestionar espacios de trabajo"
+          className="px-3 py-1.5 text-sm rounded border border-blue-200 text-blue-700 hover:bg-blue-50"
+        >
+          Espacios: {workspaceName}
+        </button>
         <button onClick={onLogout} title="Cerrar sesión" className="px-2 py-1.5 text-xs rounded text-gray-600 hover:bg-gray-100">
           Salir
         </button>
@@ -173,6 +188,13 @@ export function TopBar({
           className={`px-3 py-1.5 text-sm rounded ${aiOpen ? "bg-blue-600 text-white hover:bg-blue-700" : "hover:bg-gray-100"}`}
         >
           IA
+        </button>
+        <button
+          onClick={onToggleReverseAi}
+          title="Convertir un Markdown en diagrama mediante IA"
+          className={`px-3 py-1.5 text-sm rounded ${reverseAiOpen ? "bg-blue-600 text-white hover:bg-blue-700" : "hover:bg-gray-100"}`}
+        >
+          IA inversa
         </button>
         <button
           onClick={() => {

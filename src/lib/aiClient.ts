@@ -1,6 +1,7 @@
 /* Cliente compatible con la API de chat de OpenAI (Gemini, OpenAI, OpenRouter, Ollama…) */
 
 import type { AiScene } from "./aiScene";
+import { DIAGRAM_SYSTEM_PROMPT, parseDiagramSpec, type DiagramSpec } from "./diagramSkeleton";
 
 export type AiSettings = {
   preset: string;
@@ -184,6 +185,7 @@ async function requestText(
   model: string,
   parts: any[],
   onStatus?: (message: string) => void,
+  systemPrompt: string = SYSTEM_PROMPT,
 ): Promise<string> {
   for (let attempt = 0; ; attempt++) {
     let res: Response;
@@ -194,7 +196,7 @@ async function requestText(
         body: JSON.stringify({
           model,
           messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: systemPrompt },
             { role: "user", content: parts },
           ],
           temperature: 0.2,
@@ -272,4 +274,26 @@ export async function interpretDrawing(
     }
   }
   throw lastError;
+}
+
+/** Convierte Markdown en una definición de diagrama (camino inverso del asistente IA) */
+export async function markdownToSkeleton(
+  settings: AiSettings,
+  markdown: string,
+  instruction: string,
+  onStatus?: (message: string) => void,
+): Promise<DiagramSpec> {
+  if (!markdown.trim()) throw new Error("Pega o carga un Markdown para generar el diagrama.");
+  if (!settings.endpoint.trim()) throw new Error("Falta la URL del endpoint");
+  const model = normalizeModel(settings.model);
+  if (!model) throw new Error("Falta el nombre del modelo");
+
+  const parts = [
+    {
+      type: "text",
+      text: `Instrucción: ${instruction.trim() || "Genera el diagrama descrito."}\n\nMarkdown de entrada:\n${markdown.slice(0, 60000)}`,
+    },
+  ];
+  const text = await requestText(settings, model, parts, onStatus, DIAGRAM_SYSTEM_PROMPT);
+  return parseDiagramSpec(text);
 }

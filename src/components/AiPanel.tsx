@@ -2,35 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useDocumentStore } from "../store/useDocumentStore";
 import { AI_PRESETS, PROMPT_PRESETS, fetchModels, interpretDrawing, type AiSettings } from "../lib/aiClient";
 import { buildAiScenes } from "../lib/aiScene";
-
-const STORAGE_KEY = "elograph.ai.settings.v1";
-
-const DEFAULT_SETTINGS: AiSettings = {
-  preset: AI_PRESETS[0].id,
-  endpoint: AI_PRESETS[0].endpoint,
-  model: AI_PRESETS[0].model,
-  apiKey: "",
-};
-
-/** Modelos antiguos o no compatibles con /chat/completions que se migran al modelo por defecto */
-const OBSOLETE_MODEL = /(-live|-tts|-image|embedding|imagen|veo|transcribe|-audio|^gemini-2\.5-)/i;
-
-function loadSettings(): AiSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } as AiSettings;
-      if (saved.preset === "gemini") {
-        const model = saved.model.trim().replace(/^models\//, "");
-        saved.model = !model || OBSOLETE_MODEL.test(model) ? DEFAULT_SETTINGS.model : model;
-      }
-      return saved;
-    }
-  } catch {
-    // configuración anterior no válida: se ignoran
-  }
-  return DEFAULT_SETTINGS;
-}
+import { loadAiSettings, saveAiSettings } from "../lib/aiSettings";
 
 function uid() {
   return Math.random().toString(36).slice(2, 10);
@@ -51,7 +23,7 @@ export function AiPanel({ open, onClose }: { open: boolean; onClose: () => void 
   const activeTab = getActiveTab();
   const api = activeTab ? excalidrawApis[activeTab.id] : null;
 
-  const [settings, setSettings] = useState<AiSettings>(loadSettings);
+  const [settings, setSettings] = useState<AiSettings>(loadAiSettings);
   const [scope, setScope] = useState<"active" | "all">("active");
   const [promptId, setPromptId] = useState(PROMPT_PRESETS[0].id);
   const [prompt, setPrompt] = useState(PROMPT_PRESETS[0].text);
@@ -62,11 +34,7 @@ export function AiPanel({ open, onClose }: { open: boolean; onClose: () => void 
   const [models, setModels] = useState<string[]>([]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    } catch {
-      // almacenamiento no disponible: la configuración solo dura la sesión
-    }
+    saveAiSettings(settings);
   }, [settings]);
 
   const inputCls =

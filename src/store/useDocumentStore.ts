@@ -37,6 +37,7 @@ interface Store {
   setActiveTab: (id: string) => void;
   updateTabScene: (id: string, scene: TabData["scene"]) => void;
   setExcalidrawApi: (tabId: string, api: any) => void;
+  flushActiveScene: () => void;
 
   addCatalog: () => void;
   removeCatalog: (id: string) => void;
@@ -127,6 +128,20 @@ export const useDocumentStore = create<Store>((set, get) => {
 
     setExcalidrawApi: (tabId, api) => {
       set((s) => ({ excalidrawApis: { ...s.excalidrawApis, [tabId]: api } }));
+    },
+
+    /** Vuelca el lienzo activo al proyecto antes de guardar o cambiar de espacio. */
+    flushActiveScene: () => {
+      const { project, excalidrawApis, updateTabScene } = get();
+      const api = excalidrawApis[project.activeTabId];
+      if (!api) return;
+      const appState = { ...(api.getAppState() || {}) };
+      delete appState.collaborators;
+      updateTabScene(project.activeTabId, {
+        elements: api.getSceneElements() || [],
+        appState,
+        files: api.getFiles() || {},
+      });
     },
 
     addCatalog: () => {
