@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 import { TopBar } from "./components/TopBar";
 import { TabBar } from "./components/TabBar";
 import { Canvas } from "./components/Canvas";
@@ -7,6 +7,7 @@ import { AiPanel } from "./components/AiPanel";
 import { useDocumentStore } from "./store/useDocumentStore";
 import { loadAutosave, saveAutosave } from "./lib/autosave";
 import { saveProjectFile } from "./lib/fileSystem";
+import { openDroppedFile } from "./lib/openFile";
 
 export default function App() {
   const project = useDocumentStore((s) => s.project);
@@ -54,8 +55,19 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  const onDragOver = (e: DragEvent) => {
+    if (Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
+  };
+
+  const onDrop = (e: DragEvent) => {
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    e.preventDefault();
+    void openDroppedFile(file).catch(() => {});
+  };
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" onDragOver={onDragOver} onDrop={onDrop}>
       <TopBar aiOpen={aiOpen} onToggleAi={() => setAiOpen((v) => !v)} />
       <TabBar />
       <div className="flex flex-1 min-h-0">

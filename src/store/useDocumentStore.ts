@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { Project, TabData, Catalog } from "../types/document";
+import type { LibraryItem } from "../lib/libraryUrl";
+import { mergeProjectLibraries } from "../lib/fixedLibraries";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -16,6 +18,7 @@ const newProject = (title = "Sin título"): Project => ({
   tabs: [{ id: uid(), name: "Página 1", scene: emptyScene() }],
   activeTabId: "",
   catalogs: [],
+  libraryItems: [],
 });
 
 interface Store {
@@ -40,6 +43,7 @@ interface Store {
   updateCatalog: (id: string, patch: Partial<Catalog>) => void;
   addCatalogItem: (catalogId: string) => void;
   removeCatalogItem: (catalogId: string, index: number) => void;
+  setProjectLibraryItems: (items: LibraryItem[]) => void;
 
   getActiveTab: () => TabData | undefined;
 }
@@ -56,7 +60,10 @@ export const useDocumentStore = create<Store>((set, get) => {
     initProject: (p) => {
       const proj = p ?? newProject();
       if (!proj.activeTabId && proj.tabs.length) proj.activeTabId = proj.tabs[0].id;
+      if (!Array.isArray(proj.libraryItems)) proj.libraryItems = [];
       set({ project: proj, dirty: false });
+      // Las librerías que venían en el archivo pasan a ser fijas también en este navegador.
+      void mergeProjectLibraries(proj.libraryItems).catch(() => {});
     },
 
     setFileHandle: (h) => set({ fileHandle: h }),
@@ -173,6 +180,18 @@ export const useDocumentStore = create<Store>((set, get) => {
           catalogs: project.catalogs.map((c) =>
             c.id === catalogId ? { ...c, items: c.items.filter((_, i) => i !== index) } : c
           ),
+          meta: { ...project.meta, modified: new Date().toISOString() },
+        },
+        dirty: true,
+      });
+    },
+
+    setProjectLibraryItems: (items) => {
+      const { project } = get();
+      set({
+        project: {
+          ...project,
+          libraryItems: items,
           meta: { ...project.meta, modified: new Date().toISOString() },
         },
         dirty: true,

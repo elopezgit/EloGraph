@@ -1,3 +1,5 @@
+import type { LibraryItem } from "../lib/libraryUrl";
+
 export interface CatalogItem {
   code: string;
   description: string;
@@ -32,4 +34,6 @@ export interface Project {
   tabs: TabData[];
   activeTabId: string;
   catalogs: Catalog[];
+  /** Elementos de librería integrados, para que viajen dentro del .cdsgn */
+  libraryItems?: LibraryItem[];
 }

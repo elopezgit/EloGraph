@@ -394,6 +394,150 @@ html, body, #root {
   color: var(--lib-accent);
 }
 
+.lib-integrate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 8px;
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--lib-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lib-integrate-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.lib-integrate-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.lib-fixed-item {
+  cursor: default;
+}
+
+.lib-fixed-item:hover {
+  background: transparent;
+}
+
+.lib-fixed-badge {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: var(--lib-accent);
+  font-size: 9px;
+}
+
+.lib-fixed-item .lib-count {
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+.lib-action--wide {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.lib-fixed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 10px;
+}
+
+.lib-fixed-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lib-fixed-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #374151;
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lib-fixed-toggle:hover {
+  background: #f4f5f8;
+}
+
+.lib-fixed-toggle .lib-list-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lib-fixed-toggle .lib-count {
+  color: #9ca3af;
+  font-size: 10px;
+  flex: 0 0 auto;
+}
+
+.lib-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  padding: 4px 2px 8px 18px;
+}
+
+.lib-preview-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 52px;
+  padding: 3px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.lib-preview-tile:hover {
+  border-color: var(--lib-accent);
+}
+
+.lib-preview-tile img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.lib-preview-loading {
+  color: #9ca3af;
+  font-size: 16px;
+}
+
+.lib-preview-tile .lib-tile-plus {
+  opacity: 0;
+}
+
+.lib-preview-tile:hover .lib-tile-plus {
+  opacity: 1;
+}
+
 .lib-catalogs {
   display: flex;
   flex-direction: column;

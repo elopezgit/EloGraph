@@ -1,37 +1,59 @@
 import type { Project, TabScene } from "../types/document";
-import { excalidrawToTabScene, isElographProject, isExcalidrawScene } from "./excalidrawImport";
+import {
+  excalidrawToTabScene,
+  isElographProject,
+  isExcalidrawLibrary,
+  isExcalidrawScene,
+  libraryToItems,
+} from "./excalidrawImport";
+import type { LibraryItem } from "./libraryUrl";
 
 export type OpenedFile =
   | { kind: "project"; project: Project; handle: any }
-  | { kind: "scene"; name: string; scene: TabScene; handle: any };
+  | { kind: "scene"; name: string; scene: TabScene; handle: any }
+  | { kind: "library"; name: string; items: LibraryItem[]; handle: any };
 
 const PICKER_TYPES = [
   {
-    description: "Proyectos elograph y lienzos Excalidraw",
-    accept: { "application/json": [".cdsgn", ".pdisg", ".excalidraw", ".json"] },
+    description: "Proyectos elograph y archivos de Excalidraw",
+    accept: {
+      "application/json": [".cdsgn", ".pdisg", ".excalidraw", ".excalidrawlib", ".json"],
+    },
   },
 ];
 
-const INVALID_MESSAGE =
-  "El archivo seleccionado no es un proyecto elograph (.cdsgn) ni un lienzo de Excalidraw (.excalidraw) válido.";
+export const INVALID_MESSAGE =
+  "El archivo seleccionado no es un proyecto elograph (.cdsgn), un lienzo (.excalidraw) ni una librería (.excalidrawlib) válidos.";
 
 function nameFrom(fileName: string): string {
-  const base = fileName.replace(/\.(excalidraw|cdsgn|pdisg|json)$/i, "").trim();
-  return base || "Lienzo importado";
+  const base = fileName.replace(/\.(excalidrawlib|excalidraw|cdsgn|pdisg|json)$/i, "").trim();
+  return base || "Importado";
 }
 
-function parseOpenedFile(text: string, fileName: string, handle: any): OpenedFile | null {
+export function parseOpenedFile(text: string, fileName: string, handle: any): OpenedFile | null {
   let data: any;
   try {
-    data = JSON.parse(text);
+    // Algunos editores guardan el JSON con BOM; JSON.parse no lo tolera.
+    data = JSON.parse(text.replace(/^\uFEFF/, ""));
   } catch {
     return null;
   }
   if (isElographProject(data)) {
     return { kind: "project", project: data as Project, handle };
   }
+  if (isExcalidrawLibrary(data)) {
+    try {
+      return { kind: "library", name: nameFrom(fileName), items: libraryToItems(data), handle };
+    } catch {
+      return null;
+    }
+  }
   if (isExcalidrawScene(data)) {
-    return { kind: "scene", name: nameFrom(fileName), scene: excalidrawToTabScene(data), handle };
+    try {
+      return { kind: "scene", name: nameFrom(fileName), scene: excalidrawToTabScene(data), handle };
+    } catch {
+      return null;
+    }
   }
   return null;
 }
@@ -53,7 +75,7 @@ export async function openProjectFile(): Promise<OpenedFile | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".pdisg,.cdsgn,.excalidraw,.json,application/json";
+    input.accept = ".pdisg,.cdsgn,.excalidraw,.excalidrawlib,.json,application/json";
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return resolve(null);

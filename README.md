@@ -19,6 +19,10 @@ Abrir http://localhost:5173
 - Catálogos reutilizables (panel derecho).
 - Panel lateral de piezas como mini-lienzos dibujados (SVG), con inserción por clic o arrastrar al lienzo.
 - Importar librerías `.excalidrawlib` desde URL (incluido `libraries.excalidraw.com`).
+- Librerías fijas incluidas: **Software Architecture**, **Shapes for UML & ER Diagrams** y **Forms**. Se cargan solas al iniciar.
+- Botón **Integrar librería online**: explora el catálogo de Excalidraw; la librería elegida se descarga, se integra en la Biblioteca y queda fija (se guarda en IndexedDB y también dentro del `.cdsgn`, por lo que viaja con el proyecto).
+- Las librerías integradas aparecen en la sección **Integradas** del panel: se pueden desplegar para ver las miniaturas de todas sus piezas, insertarlas en el lienzo con un clic o arrastrarlas, y quitar la librería. También hay un botón **Ver biblioteca de Excalidraw** para abrir el panel propio de Excalidraw.
+- Abrir archivos `.excalidraw` (como pestaña nueva), `.excalidrawlib` (como librería fija) y `.cdsgn`, tanto con el botón **Abrir** como arrastrándolos a la ventana.
 - Guardar/Abrir archivo propio `.cdsgn` (JSON) con File System Access API (fallback descarga).
 - Abrir lienzos `.excalidraw` de Excalidraw: se importan como una nueva pestaña del proyecto actual (con sus elementos, imágenes y vista).
 - Autosave en IndexedDB cada 5s.

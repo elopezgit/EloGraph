@@ -3,6 +3,7 @@ import { openProjectFile, saveProjectFile } from "../lib/fileSystem";
 import { saveAutosave } from "../lib/autosave";
 import { exportToPdf, exportToPng, exportProjectToPdf } from "../lib/pdfExport";
 import { importExcelFile } from "../lib/excelImport";
+import { applyOpenedFile } from "../lib/openFile";
 
 export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: () => void }) {
   const project = useDocumentStore((s) => s.project);
@@ -10,7 +11,6 @@ export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: ()
   const dirty = useDocumentStore((s) => s.dirty);
   const setFileHandle = useDocumentStore((s) => s.setFileHandle);
   const initProject = useDocumentStore((s) => s.initProject);
-  const addTab = useDocumentStore((s) => s.addTab);
   const setDirty = useDocumentStore((s) => s.setDirty);
   const getActiveTab = useDocumentStore((s) => s.getActiveTab);
   const excalidrawApis = useDocumentStore((s) => s.excalidrawApis);
@@ -27,13 +27,7 @@ export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: ()
   const handleOpen = async () => {
     const res = await openProjectFile();
     if (!res) return;
-    if (res.kind === "project") {
-      initProject(res.project);
-      setFileHandle(res.handle);
-      return;
-    }
-    // Un .excalidraw es una sola escena: se añade como pestaña al proyecto actual
-    addTab({ name: res.name, scene: res.scene });
+    await applyOpenedFile(res);
   };
 
   const handleSave = async () => {

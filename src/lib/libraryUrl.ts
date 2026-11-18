@@ -68,7 +68,9 @@ export async function fetchRemoteCatalog(): Promise<RemoteLibrary[]> {
 
 /** Convierte el JSON de una librería en elementos utilizables por Excalidraw */
 export async function fetchLibraryItems(url: string): Promise<LibraryItem[]> {
-  const parsed = safeUrl(url);
+  // Se aceptan tanto URLs absolutas como rutas relativas (p. ej. /libraries/xxx.excalidrawlib)
+  const base = typeof window !== "undefined" ? window.location.href : "https://localhost/";
+  const parsed = safeUrl(new URL(url.trim(), base).toString());
   if (!parsed) throw new Error("URL no válida");
   const res = await fetch(parsed.toString());
   if (!res.ok) throw new Error(`No se pudo descargar la librería (${res.status})`);
@@ -79,6 +81,13 @@ export async function fetchLibraryItems(url: string): Promise<LibraryItem[]> {
     throw new Error("El archivo no contiene JSON válido");
   }
 
+  const items = libraryItemsFromData(data);
+  if (!items.length) throw new Error("La librería no contiene elementos dibujables");
+  return items;
+}
+
+/** Convierte el JSON de una librería (v1 o v2) en elementos reutilizables. */
+export function libraryItemsFromData(data: any): LibraryItem[] {
   let raw: any[] = [];
   if (Array.isArray(data)) {
     raw = data;
@@ -87,13 +96,13 @@ export async function fetchLibraryItems(url: string): Promise<LibraryItem[]> {
   } else if (Array.isArray(data?.items)) {
     raw = data.items;
   } else if (Array.isArray(data?.library)) {
-    // Formato antiguo (v1): library es un array de arrays de elementos
+    // Formato v1: library es un array de arrays de elementos
     raw = data.library.map((elements: any) => ({ elements }));
   }
 
-  const items = raw
+  return raw
     .map((item: any, index: number) => {
-      const elements: any[] = Array.isArray(item?.elements) ? item.elements : [];
+      const elements: any[] = Array.isArray(item?.elements) ? item.elements : Array.isArray(item) ? item : [];
       if (!elements.length) return null;
       const firstText = elements.find((el: any) => el?.type === "text" && el?.text);
       return {
@@ -106,7 +115,4 @@ export async function fetchLibraryItems(url: string): Promise<LibraryItem[]> {
       } as LibraryItem;
     })
     .filter((item: LibraryItem | null): item is LibraryItem => !!item);
-
-  if (!items.length) throw new Error("La librería no contiene elementos dibujables");
-  return items;
 }

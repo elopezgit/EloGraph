@@ -1,5 +1,9 @@
 import { useDocumentStore } from "../store/useDocumentStore";
-import { useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent } from "react";
+import { listFixedLibraries, type FixedLibrary } from "../lib/fixedLibraries";
+import { integrateLibrary, unintegrateLibrary } from "../lib/libraryIntegration";
+import { libraryItemPreview } from "../lib/libraryPreview";
+import { prepareLibraryElements } from "../lib/libraryElements";
 import { PieceThumb, PanelIcon } from "./PieceThumb";
 import { DRAG_MIME, setPieceDrag, clearPieceDrag } from "../lib/dragPiece";
 import {
@@ -9,6 +13,7 @@ import {
   isDirectLibraryUrl,
   isLibrarySiteUrl,
   isValidLibraryUrl,
+  libraryItemsFromData,
   type RemoteLibrary,
 } from "../lib/libraryUrl";
 
@@ -122,6 +127,7 @@ export function SidePanel() {
     "General": false,
     "Plantillas": false,
     "Biblioteca": false,
+    "Integradas": true,
     "Catálogos": false,
   });
   const [libraryUrl, setLibraryUrl] = useState("");
@@ -129,6 +135,40 @@ export function SidePanel() {
   const [remoteSearch, setRemoteSearch] = useState("");
   const [libraryStatus, setLibraryStatus] = useState("");
   const [libraryLoading, setLibraryLoading] = useState(false);
+  const [fixedLibs, setFixedLibs] = useState<FixedLibrary[]>([]);
+  const [expandedLibs, setExpandedLibs] = useState<Record<string, boolean>>({});
+  const [previews, setPreviews] = useState<Record<string, string>>({});
+
+  const toggleLib = (lib: FixedLibrary) => {
+    const next = !expandedLibs[lib.id];
+    setExpandedLibs((s) => ({ ...s, [lib.id]: next }));
+    if (next) {
+      void Promise.all(lib.items.map((item) => libraryItemPreview(item))).then((list) => {
+        setPreviews((prev) => {
+          const merged = { ...prev };
+          lib.items.forEach((item, i) => { merged[item.id] = list[i]; });
+          return merged;
+        });
+      });
+    }
+  };
+
+  const openExcalidrawLibrary = () => {
+    if (!api) return alert("Canvas no disponible");
+    void api.updateLibrary({ libraryItems: [], merge: true, openLibraryMenu: true });
+  };
+
+  const insertLibraryItem = (item: any, pt?: { x: number; y: number }) => {
+    insertAt(prepareLibraryElements(item.elements), [], pt);
+  };
+
+  const refreshFixedLibs = () => {
+    void listFixedLibraries()
+      .then(setFixedLibs)
+      .catch(() => {});
+  };
+
+  useEffect(refreshFixedLibs, []);
 
   const insertAt = (elements: any[], selectedIds: string[], pt?: { x: number; y: number }) => {
     if (!api) { alert("Canvas no disponible"); return; }
@@ -701,7 +741,6 @@ export function SidePanel() {
   };
 
   const importLibrary = () => {
-    if (!api) return;
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".excalidrawlib,.json";
@@ -710,38 +749,27 @@ export function SidePanel() {
       if (!f) return;
       const text = await f.text();
       try {
-        const data = JSON.parse(text);
-        const items = data.libraryItems || data.items || [];
-        const els: any[] = [];
-        items.forEach((it: any) => {
-          (it.elements || []).forEach((e: any) => els.push({ ...e, id: uid() }));
-        });
-        if (els.length === 0) return alert("Sin elementos");
-        const existing = api.getSceneElements();
-        api.updateScene({ elements: [...existing, ...els] });
-      } catch {
-        alert("Archivo inválido");
+        const data = JSON.parse(text.replace(/^\uFEFF/, ""));
+        const items = libraryItemsFromData(data);
+        if (!items.length) return alert("Sin elementos");
+        await integrateLibrary({ name: f.name.replace(/\.(excalidrawlib|json)$/i, ""), items, api });
+        refreshFixedLibs();
+        setLibraryStatus(`«${f.name}» integrada como librería fija (${items.length} pieza(s))`);
+      } catch (err) {
+        alert("Archivo inválido: " + ((err as any)?.message || ""));
       }
     };
     input.click();
   };
 
   const addRemoteLibrary = async (url: string, name: string) => {
-    if (!api) {
-      setLibraryStatus("Canvas no disponible");
-      return;
-    }
     setLibraryLoading(true);
-    setLibraryStatus("Descargando librería…");
+    setLibraryStatus("Descargando e integrando librería…");
     try {
       const items = await fetchLibraryItems(url);
-      await api.updateLibrary({
-        libraryItems: items,
-        merge: true,
-        defaultStatus: "published",
-        openLibraryMenu: true,
-      });
-      setLibraryStatus(`«${name}» agregada (${items.length} pieza(s))`);
+      await integrateLibrary({ name, items, sourceUrl: url, api });
+      refreshFixedLibs();
+      setLibraryStatus(`«${name}» integrada y fijada (${items.length} pieza(s))`);
     } catch (err) {
       setLibraryStatus("Error: " + ((err as any)?.message || "No se pudo importar"));
     } finally {
@@ -1112,6 +1140,30 @@ export function SidePanel() {
                   {section("Biblioteca")}
                   {openCats["Biblioteca"] && (
                     <>
+                      <button
+                        className="lib-integrate-btn"
+                        disabled={libraryLoading}
+                        onClick={async () => {
+                          setLibraryLoading(true);
+                          setLibraryStatus("Cargando catálogo de Excalidraw…");
+                          try {
+                            const list = await fetchRemoteCatalog();
+                            setRemoteLibs(list);
+                            setLibraryStatus(`Catálogo listo (${list.length} librerías). Elige una para integrarla.`);
+                          } catch (err) {
+                            setLibraryStatus("Error: " + ((err as any)?.message || "No se pudo leer el catálogo"));
+                          } finally {
+                            setLibraryLoading(false);
+                          }
+                        }}
+                      >
+                        <PanelIcon name="plus" size={15} /> Integrar librería online
+                      </button>
+
+                      <button className="lib-action lib-action--wide" onClick={openExcalidrawLibrary}>
+                        Ver biblioteca de Excalidraw
+                      </button>
+
                       <div className="lib-two">
                         <button className="lib-action" onClick={exportLibrary}>
                           <PanelIcon name="export" size={14} /> Exportar
@@ -1123,7 +1175,7 @@ export function SidePanel() {
 
                       <div className="lib-url-box">
                         <label className="lib-url-label" htmlFor="lib-url-input">
-                          Agregar lienzos desde URL
+                          Integrar desde URL (.excalidrawlib)
                         </label>
                         <div className="lib-url-row">
                           <input
@@ -1181,6 +1233,73 @@ export function SidePanel() {
                         )}
                       </div>
                     </>
+                  )}
+                </section>
+
+                <section className="lib-section lib-section--extra">
+                  {section("Integradas", fixedLibs.length)}
+                  {openCats["Integradas"] && (
+                    <div className="lib-fixed-list">
+                      {fixedLibs.map((lib) => (
+                        <div key={lib.id} className="lib-fixed">
+                          <div className="lib-fixed-head">
+                            <button className="lib-fixed-toggle" onClick={() => toggleLib(lib)}>
+                              <span className={`lib-chevron ${expandedLibs[lib.id] ? "is-open" : ""}`}>
+                                <PanelIcon name="chevron" size={14} />
+                              </span>
+                              <span className="lib-list-label">{lib.name}</span>
+                              <span className="lib-count">{lib.items.length}</span>
+                            </button>
+                            {lib.builtin ? (
+                              <span className="lib-fixed-badge" title="Incluida en la aplicación">Fija</span>
+                            ) : (
+                              <button
+                                className="lib-mini-btn"
+                                title="Quitar librería integrada"
+                                onClick={() => {
+                                  void unintegrateLibrary(lib.id, api).then(() => {
+                                    refreshFixedLibs();
+                                    setLibraryStatus(`«${lib.name}» quitada`);
+                                  });
+                                }}
+                              >
+                                <PanelIcon name="trash" size={12} />
+                              </button>
+                            )}
+                          </div>
+                          {expandedLibs[lib.id] && (
+                            <div className="lib-preview-grid">
+                              {lib.items.map((item, idx) => (
+                                <button
+                                  key={`${item.id}-${idx}`}
+                                  className="lib-preview-tile"
+                                  onClick={() => insertLibraryItem(item)}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    setPieceDrag({
+                                      label: item.name || "Pieza",
+                                      insert: (pt) => insertLibraryItem(item, pt),
+                                    });
+                                    e.dataTransfer.effectAllowed = "copy";
+                                    e.dataTransfer.setData(DRAG_MIME, item.name || "Pieza");
+                                  }}
+                                  onDragEnd={clearPieceDrag}
+                                  title={`Insertar ${item.name || "pieza"}`}
+                                >
+                                  {previews[item.id] ? (
+                                    <img src={previews[item.id]} alt="" draggable={false} />
+                                  ) : (
+                                    <span className="lib-preview-loading">···</span>
+                                  )}
+                                  <span className="lib-tile-plus"><PanelIcon name="plus" size={12} /></span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {fixedLibs.length === 0 && <p className="lib-empty">Sin librerías integradas.</p>}
+                    </div>
                   )}
                 </section>
 
