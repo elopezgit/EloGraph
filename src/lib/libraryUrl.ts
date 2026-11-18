@@ -25,6 +25,29 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+/** Resuelve una ruta de la app contra su base real (raíz o subruta). */
+export function resolveAppAssetUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  const clean = path.replace(/^\/+/, "");
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://localhost";
+  const base = import.meta.env.BASE_URL || "./";
+
+  if (base.startsWith("/")) {
+    const root = base.endsWith("/") ? base : `${base}/`;
+    return new URL(clean, new URL(root, origin)).toString();
+  }
+
+  // base relativa ("./"): se toma el directorio de la página actual
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "/";
+  const last = pathname.split("/").pop() || "";
+  const dir = last.includes(".")
+    ? pathname.slice(0, pathname.length - last.length)
+    : pathname.endsWith("/")
+      ? pathname
+      : `${pathname}/`;
+  return new URL(clean, new URL(dir, origin)).toString();
+}
+
 function safeUrl(input: string): URL | null {
   try {
     const url = new URL(input.trim());
@@ -68,9 +91,8 @@ export async function fetchRemoteCatalog(): Promise<RemoteLibrary[]> {
 
 /** Convierte el JSON de una librería en elementos utilizables por Excalidraw */
 export async function fetchLibraryItems(url: string): Promise<LibraryItem[]> {
-  // Se aceptan tanto URLs absolutas como rutas relativas (p. ej. /libraries/xxx.excalidrawlib)
-  const base = typeof window !== "undefined" ? window.location.href : "https://localhost/";
-  const parsed = safeUrl(new URL(url.trim(), base).toString());
+  // Se aceptan URLs absolutas y rutas relativas a la base de la app
+  const parsed = safeUrl(resolveAppAssetUrl(url));
   if (!parsed) throw new Error("URL no válida");
   const res = await fetch(parsed.toString());
   if (!res.ok) throw new Error(`No se pudo descargar la librería (${res.status})`);

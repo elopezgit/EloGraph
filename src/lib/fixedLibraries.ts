@@ -25,19 +25,19 @@ export const BUILTIN_LIBRARIES: BuiltinLibrary[] = [
   {
     id: "builtin:software-architecture",
     name: "Software Architecture",
-    file: "/libraries/software-architecture.excalidrawlib",
+    file: "libraries/software-architecture.excalidrawlib",
     sourceUrl: "https://libraries.excalidraw.com/libraries/youritjang/software-architecture.excalidrawlib",
   },
   {
     id: "builtin:uml-er",
     name: "Shapes for UML & ER Diagrams",
-    file: "/libraries/uml-er-library.excalidrawlib",
+    file: "libraries/uml-er-library.excalidrawlib",
     sourceUrl: "https://libraries.excalidraw.com/libraries/BjoernKW/UML-ER-library.excalidrawlib",
   },
   {
     id: "builtin:forms",
     name: "Forms",
-    file: "/libraries/forms.excalidrawlib",
+    file: "libraries/forms.excalidrawlib",
     sourceUrl: "https://libraries.excalidraw.com/libraries/g-script/forms.excalidrawlib",
   },
 ];
@@ -100,23 +100,47 @@ export async function getStoredLibraries(): Promise<FixedLibrary[]> {
   }
 }
 
+export type BuiltinLoadError = { name: string; message: string };
+
+let builtinErrors: BuiltinLoadError[] = [];
+
+export function getBuiltinLoadErrors(): BuiltinLoadError[] {
+  return builtinErrors;
+}
+
 async function builtinLibraries(): Promise<FixedLibrary[]> {
   const result: FixedLibrary[] = [];
+  const errors: BuiltinLoadError[] = [];
   for (const def of BUILTIN_LIBRARIES) {
-    try {
-      const items = await fetchLibraryItems(def.file);
-      result.push({
-        id: def.id,
-        name: def.name,
-        items,
-        builtin: true,
-        sourceUrl: def.sourceUrl,
-        created: 0,
-      });
-    } catch (err) {
-      console.error(`No se pudo cargar la librería fija «${def.name}»`, err);
+    let items: Awaited<ReturnType<typeof fetchLibraryItems>> | null = null;
+    let lastError: any;
+    // Primero el archivo incluido en la app; si el despliegue no lo sirve, se usa el catálogo.
+    for (const source of [def.file, def.sourceUrl]) {
+      try {
+        items = await fetchLibraryItems(source);
+        break;
+      } catch (err) {
+        lastError = err;
+      }
     }
+    if (!items) {
+      console.error(`No se pudo cargar la librería fija «${def.name}»`, lastError);
+      errors.push({ name: def.name, message: String((lastError as any)?.message || "No disponible") });
+      continue;
+    }
+    result.push({
+      id: def.id,
+      name: def.name,
+      items,
+      builtin: true,
+      sourceUrl: def.sourceUrl,
+      created: 0,
+    });
   }
+
+  const changed = JSON.stringify(errors) !== JSON.stringify(builtinErrors);
+  builtinErrors = errors;
+  if (changed) notifyLibrariesChanged();
   return result;
 }
 

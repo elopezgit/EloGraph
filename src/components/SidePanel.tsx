@@ -1,6 +1,12 @@
 import { useDocumentStore } from "../store/useDocumentStore";
 import { useEffect, useState, type DragEvent } from "react";
-import { listFixedLibraries, type FixedLibrary } from "../lib/fixedLibraries";
+import {
+  getBuiltinLoadErrors,
+  listFixedLibraries,
+  onLibrariesChanged,
+  type BuiltinLoadError,
+  type FixedLibrary,
+} from "../lib/fixedLibraries";
 import { integrateLibrary, unintegrateLibrary } from "../lib/libraryIntegration";
 import { libraryItemPreview } from "../lib/libraryPreview";
 import { prepareLibraryElements } from "../lib/libraryElements";
@@ -138,6 +144,7 @@ export function SidePanel() {
   const [fixedLibs, setFixedLibs] = useState<FixedLibrary[]>([]);
   const [expandedLibs, setExpandedLibs] = useState<Record<string, boolean>>({});
   const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [builtinErrors, setBuiltinErrors] = useState<BuiltinLoadError[]>([]);
 
   const toggleLib = (lib: FixedLibrary) => {
     const next = !expandedLibs[lib.id];
@@ -164,11 +171,18 @@ export function SidePanel() {
 
   const refreshFixedLibs = () => {
     void listFixedLibraries()
-      .then(setFixedLibs)
+      .then((libs) => {
+        setFixedLibs(libs);
+        setBuiltinErrors(getBuiltinLoadErrors());
+      })
       .catch(() => {});
   };
 
-  useEffect(refreshFixedLibs, []);
+  useEffect(() => {
+    refreshFixedLibs();
+    const off = onLibrariesChanged(refreshFixedLibs);
+    return off;
+  }, []);
 
   const insertAt = (elements: any[], selectedIds: string[], pt?: { x: number; y: number }) => {
     if (!api) { alert("Canvas no disponible"); return; }
@@ -1297,6 +1311,11 @@ export function SidePanel() {
                             </div>
                           )}
                         </div>
+                      ))}
+                      {builtinErrors.map((err) => (
+                        <p key={err.name} className="lib-url-status" title={err.message}>
+                          No se pudo cargar «{err.name}». Revisa la conexión o el despliegue.
+                        </p>
                       ))}
                       {fixedLibs.length === 0 && <p className="lib-empty">Sin librerías integradas.</p>}
                     </div>
