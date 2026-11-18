@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { svg2pdf } from "svg2pdf.js";
 import type { Project } from "../types/document";
+import { sceneToPngBlob } from "./excalidrawPng";
 
 export async function exportToPdf(elements: any[], appState: any, files: any, title: string): Promise<void> {
   const { exportToSvg } = await import("@excalidraw/excalidraw");
@@ -74,13 +75,7 @@ export async function exportProjectToPdf(project: Project): Promise<void> {
 }
 
 export async function exportToPng(elements: any[], appState: any, files: any, title: string): Promise<void> {
-  const { exportToBlob } = await import("@excalidraw/excalidraw");
-  const blob = await exportToBlob({
-    elements,
-    appState: { ...appState, exportBackground: true },
-    files,
-    mimeType: "image/png",
-  });
+  const blob = await sceneToPngBlob({ elements, appState, files }, 4096);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

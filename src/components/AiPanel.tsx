@@ -12,10 +12,20 @@ const DEFAULT_SETTINGS: AiSettings = {
   apiKey: "",
 };
 
+/** Modelos antiguos o no compatibles con /chat/completions que se migran al modelo por defecto */
+const OBSOLETE_MODEL = /(-live|-tts|-image|embedding|imagen|veo|transcribe|-audio|^gemini-2\.5-)/i;
+
 function loadSettings(): AiSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    if (raw) {
+      const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } as AiSettings;
+      if (saved.preset === "gemini") {
+        const model = saved.model.trim().replace(/^models\//, "");
+        saved.model = !model || OBSOLETE_MODEL.test(model) ? DEFAULT_SETTINGS.model : model;
+      }
+      return saved;
+    }
   } catch {
     // configuración anterior no válida: se ignoran
   }
@@ -106,8 +116,13 @@ export function AiPanel({ open, onClose }: { open: boolean; onClose: () => void 
     }
     setLoading(true);
     try {
-      const scenes = await buildAiScenes(tabs);
-      const text = await interpretDrawing(settings, scenes, prompt);
+      let scenes: Awaited<ReturnType<typeof buildAiScenes>>;
+      try {
+        scenes = await buildAiScenes(tabs);
+      } catch (err) {
+        throw new Error("No se pudo generar la imagen del dibujo: " + errorMessage(err));
+      }
+      const text = await interpretDrawing(settings, scenes, prompt, setStatus);
       setResult(text);
       setStatus("Análisis completado");
     } catch (err) {

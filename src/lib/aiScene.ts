@@ -1,6 +1,7 @@
 /* Prepara el contenido del lienzo para que un modelo de visión lo interprete */
 
 import type { TabScene } from "../types/document";
+import { blobToBase64, sceneToPngBlob } from "./excalidrawPng";
 
 export type SceneNode = {
   id: string;
@@ -83,27 +84,11 @@ function buildGraph(elements: any[]) {
 }
 
 async function renderPng(scene: TabScene, elements: any[]): Promise<string> {
-  const { exportToBlob } = await import("@excalidraw/excalidraw");
-  const blob = await exportToBlob({
-    elements,
-    appState: { ...(scene.appState || {}), exportBackground: true, exportWithDarkMode: false },
-    files: scene.files || {},
-    mimeType: "image/png",
-    exportPadding: 16,
-  });
-
-  const bitmap = await createImageBitmap(blob);
-  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
-  const w = Math.max(1, Math.round(bitmap.width * scale));
-  const h = Math.max(1, Math.round(bitmap.height * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("No se pudo preparar la imagen del lienzo");
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  bitmap.close();
-  return (canvas.toDataURL("image/png").split(",")[1] ?? "");
+  const blob = await sceneToPngBlob(
+    { elements, appState: scene.appState, files: scene.files },
+    MAX_IMAGE_SIDE,
+  );
+  return blobToBase64(blob);
 }
 
 /** Convierte una o varias pestañas en imágenes + descripción estructurada */

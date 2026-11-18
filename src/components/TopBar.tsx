@@ -96,12 +96,29 @@ export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: ()
 
   const handleExportPdf = async () => {
     if (!api) return notify("Canvas no disponible");
-    await exportToPdf(api.getSceneElements(), api.getAppState(), api.getFiles(), project.meta.title);
+    try {
+      await exportToPdf(api.getSceneElements(), api.getAppState(), api.getFiles(), project.meta.title);
+    } catch (err) {
+      notify("No se pudo exportar el PDF: " + ((err as any)?.message || "error desconocido"));
+    }
+  };
+
+  const handleExportProjectPdf = async () => {
+    try {
+      await exportProjectToPdf(project);
+    } catch (err) {
+      notify("No se pudo exportar el PDF: " + ((err as any)?.message || "error desconocido"));
+    }
   };
 
   const handleExportPng = async () => {
     if (!api) return notify("Canvas no disponible");
-    await exportToPng(api.getSceneElements(), api.getAppState(), api.getFiles(), project.meta.title);
+    try {
+      await exportToPng(api.getSceneElements(), api.getAppState(), api.getFiles(), project.meta.title);
+      notify("PNG exportado");
+    } catch (err) {
+      notify("No se pudo exportar el PNG: " + ((err as any)?.message || "error desconocido"));
+    }
   };
 
   return (
@@ -137,7 +154,7 @@ export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: ()
         </button>
         <div className="w-px h-6 bg-gray-300 mx-1" />
         <button onClick={handleExportPdf} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PDF</button>
-        <button onClick={() => exportProjectToPdf(project)} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PDF (todas)</button>
+        <button onClick={() => void handleExportProjectPdf()} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PDF (todas)</button>
         <button onClick={handleExportPng} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PNG</button>
         <button
           onClick={onToggleAi}
