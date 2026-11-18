@@ -6,7 +6,15 @@ import { exportToPdf, exportToPng, exportProjectToPdf } from "../lib/pdfExport";
 import { importExcelFile } from "../lib/excelImport";
 import { applyOpenedFile, openRemoteFile } from "../lib/openFile";
 
-export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: () => void }) {
+export function TopBar({
+  aiOpen,
+  onToggleAi,
+  onLogout,
+}: {
+  aiOpen: boolean;
+  onToggleAi: () => void;
+  onLogout: () => void;
+}) {
   const project = useDocumentStore((s) => s.project);
   const fileHandle = useDocumentStore((s) => s.fileHandle);
   const dirty = useDocumentStore((s) => s.dirty);
@@ -125,6 +133,9 @@ export function TopBar({ aiOpen, onToggleAi }: { aiOpen: boolean; onToggleAi: ()
     <div>
       <header className="flex items-center gap-2 px-3 py-2 border-b bg-white shadow-sm z-10">
         <div className="font-bold text-lg text-blue-700 mr-2">elograph</div>
+        <button onClick={onLogout} title="Cerrar sesión" className="px-2 py-1.5 text-xs rounded text-gray-600 hover:bg-gray-100">
+          Salir
+        </button>
         <button onClick={handleNew} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Nuevo</button>
         <input
           ref={fileInputRef}

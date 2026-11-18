@@ -4,6 +4,8 @@ import { TabBar } from "./components/TabBar";
 import { Canvas } from "./components/Canvas";
 import { SidePanel } from "./components/SidePanel";
 import { AiPanel } from "./components/AiPanel";
+import { Login } from "./components/Login";
+import { isAuthenticated, logout } from "./lib/auth";
 import { useDocumentStore } from "./store/useDocumentStore";
 import { loadAutosave, saveAutosave } from "./lib/autosave";
 import { saveProjectFile } from "./lib/fileSystem";
@@ -15,6 +17,7 @@ export default function App() {
   const setDirty = useDocumentStore((s) => s.setDirty);
   const [aiOpen, setAiOpen] = useState(false);
   const [dropStatus, setDropStatus] = useState("");
+  const [authenticated, setAuthenticated] = useState(() => isAuthenticated());
 
   const notifyDrop = (message: string) => {
     setDropStatus(message);
@@ -74,9 +77,17 @@ export default function App() {
       .catch((err: any) => notifyDrop("No se pudo abrir el archivo: " + ((err as any)?.message || "error desconocido")));
   };
 
+  if (!authenticated) {
+    return <Login onSuccess={() => setAuthenticated(true)} />;
+  }
+
   return (
     <div className="flex flex-col h-full" onDragOver={onDragOver} onDrop={onDrop}>
-      <TopBar aiOpen={aiOpen} onToggleAi={() => setAiOpen((v) => !v)} />
+      <TopBar
+        aiOpen={aiOpen}
+        onToggleAi={() => setAiOpen((v) => !v)}
+        onLogout={() => { logout(); setAuthenticated(false); }}
+      />
       <TabBar />
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0">
