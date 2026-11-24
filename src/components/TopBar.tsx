@@ -1,6 +1,6 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useDocumentStore } from "../store/useDocumentStore";
-import { INVALID_MESSAGE, OPEN_ACCEPT, readOpenedFile, saveProjectFile } from "../lib/fileSystem";
+import { INVALID_MESSAGE, OPEN_ACCEPT, readOpenedFile, saveProjectFile, saveProjectFileAs } from "../lib/fileSystem";
 import { saveAutosave } from "../lib/autosave";
 import { exportToPdf, exportToPng, exportProjectToPdf } from "../lib/pdfExport";
 import { importExcelFile } from "../lib/excelImport";
@@ -41,6 +41,24 @@ export function TopBar({
   const [confirmNew, setConfirmNew] = useState(false);
   const [urlOpen, setUrlOpen] = useState(false);
   const [remoteUrl, setRemoteUrl] = useState("");
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!saveMenuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!saveMenuRef.current?.contains(e.target as Node)) setSaveMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSaveMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [saveMenuOpen]);
 
   const notify = (message: string) => {
     setStatus(message);
@@ -102,12 +120,35 @@ export function TopBar({
   };
 
   const handleSave = async () => {
-    const p = useDocumentStore.getState().project;
-    const h = await saveProjectFile(p, fileHandle);
-    setFileHandle(h);
-    setDirty(false);
-    await saveAutosave(p);
-    notify("Proyecto guardado");
+    try {
+      const st = useDocumentStore.getState();
+      st.flushActiveScene();
+      const p = useDocumentStore.getState().project;
+      const res = await saveProjectFile(p, fileHandle);
+      if (!res.saved) return;
+      setFileHandle(res.handle);
+      setDirty(false);
+      await saveAutosave(p);
+      notify("Proyecto guardado");
+    } catch (err) {
+      notify("No se pudo guardar: " + ((err as any)?.message || "error desconocido"));
+    }
+  };
+
+  const handleSaveAs = async () => {
+    try {
+      const st = useDocumentStore.getState();
+      st.flushActiveScene();
+      const p = useDocumentStore.getState().project;
+      const res = await saveProjectFileAs(p);
+      if (!res.saved) return;
+      setFileHandle(res.handle);
+      setDirty(false);
+      await saveAutosave(p);
+      notify("Proyecto guardado como " + (res.handle?.name || `${p.meta.title || "proyecto"}.cdsgn`));
+    } catch (err) {
+      notify("No se pudo guardar: " + ((err as any)?.message || "error desconocido"));
+    }
   };
 
   const handleExportPdf = async () => {
@@ -175,9 +216,39 @@ export function TopBar({
         >
           Abrir URL
         </button>
-        <button onClick={handleSave} className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700">
-          Guardar{dirty ? " •" : ""}
-        </button>
+        <div ref={saveMenuRef} className="relative flex">
+          <button
+            onClick={() => { setSaveMenuOpen(false); void handleSave(); }}
+            className="px-3 py-1.5 text-sm rounded-l bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Guardar{dirty ? " •" : ""}
+          </button>
+          <button
+            onClick={() => setSaveMenuOpen((v) => !v)}
+            title="Opciones de guardado"
+            aria-label="Opciones de guardado"
+            aria-expanded={saveMenuOpen}
+            className="px-2 py-1.5 text-sm rounded-r border-l border-blue-500 bg-blue-600 text-white hover:bg-blue-700"
+          >
+            ▾
+          </button>
+          {saveMenuOpen && (
+            <div className="absolute top-full left-0 mt-1 z-20 min-w-40 bg-white border rounded shadow py-1">
+              <button
+                className="block w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100"
+                onClick={() => { setSaveMenuOpen(false); void handleSave(); }}
+              >
+                Guardar
+              </button>
+              <button
+                className="block w-full text-left px-3 py-1.5 text-sm hover:bg-gray-100"
+                onClick={() => { setSaveMenuOpen(false); void handleSaveAs(); }}
+              >
+                Guardar como…
+              </button>
+            </div>
+          )}
+        </div>
         <div className="w-px h-6 bg-gray-300 mx-1" />
         <button onClick={handleExportPdf} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PDF</button>
         <button onClick={() => void handleExportProjectPdf()} className="px-3 py-1.5 text-sm rounded hover:bg-gray-100">Exportar PDF (todas)</button>

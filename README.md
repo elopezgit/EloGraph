@@ -23,7 +23,7 @@ Abrir http://localhost:5173
 - Botón **Integrar librería online**: explora el catálogo de Excalidraw; la librería elegida se descarga, se integra en la Biblioteca y queda fija (se guarda en IndexedDB y también dentro del `.cdsgn`, por lo que viaja con el proyecto).
 - Las librerías integradas aparecen en la sección **Integradas** del panel: se pueden desplegar para ver las miniaturas de todas sus piezas, insertarlas en el lienzo con un clic o arrastrarlas, y quitar la librería. También hay un botón **Ver biblioteca de Excalidraw** para abrir el panel propio de Excalidraw.
 - Abrir archivos `.excalidraw` (como pestaña nueva), `.excalidrawlib` (como librería fija) y `.cdsgn`, con el botón **Abrir** (selector universal compatible con móvil, Safari y Firefox), arrastrándolos a la ventana o mediante **Abrir URL**. Los avisos se muestran dentro de la app, sin depender de `alert`.
-- Guardar/Abrir archivo propio `.cdsgn` (JSON) con File System Access API (fallback descarga).
+- Guardar/Abrir archivo propio `.cdsgn` (JSON) con File System Access API (fallback descarga). El botón **Guardar** es desplegable: **Guardar** sobrescribe el archivo actual y **Guardar como…** permite elegir ubicación y nombre para guardar una copia (y la usa como destino de los próximos guardados). Ambos guardan siempre en el formato propio `.cdsgn`.
 - Abrir lienzos `.excalidraw` de Excalidraw: se importan como una nueva pestaña del proyecto actual (con sus elementos, imágenes y vista).
 - Autosave en IndexedDB cada 5s.
 - Exportar PDF vectorial y PNG.
@@ -32,7 +32,8 @@ Abrir http://localhost:5173
 
 ## Atajos
 
-- Ctrl+S: Guardar.
+- Ctrl+S: Guardar (sobre el archivo actual; si aún no hay uno, pide la ubicación).
+- Ctrl+Shift+S: Guardar como… (elige ubicación y nombre del `.cdsgn`).
 
 ## Notas
 

@@ -58,47 +58,82 @@ export async function readOpenedFile(file: File): Promise<OpenedFile | null> {
   return parseOpenedFile(text, file.name, null);
 }
 
-/** Guarda el proyecto. Usa el diálogo nativo si está disponible; si no, descarga el archivo. */
-export async function saveProjectFile(project: Project, handle: any): Promise<any> {
-  const data = JSON.stringify(project, null, 2);
-  const blob = new Blob([data], { type: "application/json" });
+export interface SaveResult {
+  /** false solo cuando el usuario cancela el selector de ubicación. */
+  saved: boolean;
+  /** Handle del archivo elegido; null en el modo descarga o si se canceló. */
+  handle: any;
+}
 
-  // Guardar sobre el archivo ya elegido (solo escritorio con API disponible).
-  if (handle && typeof handle.createWritable === "function") {
-    try {
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return handle;
-    } catch {
-      // Si falla, se continúa con la descarga.
-    }
-  }
+const SAVE_TYPES = [
+  { description: "Proyecto elograph (.cdsgn)", accept: { "application/json": [".cdsgn"] } },
+];
 
-  if (typeof (window as any).showSaveFilePicker === "function") {
-    try {
-      const newHandle = await (window as any).showSaveFilePicker({
-        suggestedName: `${project.meta.title || "proyecto"}.cdsgn`,
-        types: [{ description: "elograph", accept: { "application/json": [".cdsgn", ".pdisg"] } }],
-      });
-      const writable = await newHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return newHandle;
-    } catch (e) {
-      if ((e as any)?.name === "AbortError") return handle;
-      // Otros errores: se continúa con la descarga.
-    }
-  }
+function projectFileName(project: Project): string {
+  const base = (project.meta.title || "proyecto").replace(/[\\/:*?"<>|]/g, "_").trim() || "proyecto";
+  return `${base}.cdsgn`;
+}
 
-  // Descarga: camino universal (móvil, Safari, Firefox, iframe…).
+function projectBlob(project: Project): Blob {
+  return new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
+}
+
+async function writeToFile(handle: any, blob: Blob): Promise<void> {
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
+function downloadProject(blob: Blob, project: Project): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${project.meta.title || "proyecto"}.cdsgn`;
+  a.download = projectFileName(project);
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return handle;
+}
+
+/** Guarda sobre el archivo ya elegido. Si no hay uno, pide la ubicación. */
+export async function saveProjectFile(project: Project, handle: any): Promise<SaveResult> {
+  const blob = projectBlob(project);
+
+  if (handle && typeof handle.createWritable === "function") {
+    try {
+      await writeToFile(handle, blob);
+      return { saved: true, handle };
+    } catch {
+      // Si falla, se pide una ubicación nueva.
+    }
+  }
+
+  return saveProjectFileAs(project, blob);
+}
+
+/** Pide ubicación y nombre, y guarda el proyecto en el formato propio .cdsgn. */
+export async function saveProjectFileAs(project: Project, blob?: Blob): Promise<SaveResult> {
+  const data = blob ?? projectBlob(project);
+
+  if (typeof (window as any).showSaveFilePicker === "function") {
+    try {
+      const newHandle = await (window as any).showSaveFilePicker({
+        id: "elograph-project",
+        suggestedName: projectFileName(project),
+        types: SAVE_TYPES,
+      });
+      try {
+        await writeToFile(newHandle, data);
+        return { saved: true, handle: newHandle };
+      } catch {
+        // Si no se puede escribir, se ofrece la descarga como último recurso.
+      }
+    } catch (e) {
+      if ((e as any)?.name === "AbortError") return { saved: false, handle: null };
+      // Otros errores: se continúa con la descarga.
+    }
+  }
+
+  downloadProject(data, project);
+  return { saved: true, handle: null };
 }

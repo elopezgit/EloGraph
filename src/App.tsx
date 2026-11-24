@@ -10,7 +10,7 @@ import { Login } from "./components/Login";
 import { isAuthenticated, logout } from "./lib/auth";
 import { useWorkspaces } from "./hooks/useWorkspaces";
 import { useDocumentStore } from "./store/useDocumentStore";
-import { saveProjectFile } from "./lib/fileSystem";
+import { saveProjectFile, saveProjectFileAs } from "./lib/fileSystem";
 import { openDroppedFile } from "./lib/openFile";
 
 export default function App() {
@@ -52,10 +52,16 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         const st = useDocumentStore.getState();
-        saveProjectFile(st.project, st.fileHandle).then((h) => {
-          st.setFileHandle(h);
+        st.flushActiveScene();
+        const p = useDocumentStore.getState().project;
+        const saveAs = e.shiftKey;
+        const saving = saveAs ? saveProjectFileAs(p) : saveProjectFile(p, st.fileHandle);
+        void saving.then((res) => {
+          if (!res.saved) return;
+          st.setFileHandle(res.handle);
           st.setDirty(false);
           void wsSaveCurrent();
+          notify(saveAs ? "Proyecto guardado como .cdsgn" : "Proyecto guardado");
         }).catch(() => {});
       }
     };
