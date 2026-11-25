@@ -122,14 +122,18 @@ export function TopBar({
   const handleSave = async () => {
     try {
       const st = useDocumentStore.getState();
-      st.flushActiveScene();
+      // Pestaña realmente visible en la interfaz.
+      const tabIdToSave = activeTab?.id ?? st.project.activeTabId;
+      st.flushActiveScene(tabIdToSave);
+      if (tabIdToSave && st.project.activeTabId !== tabIdToSave) st.setActiveTab(tabIdToSave);
       const p = useDocumentStore.getState().project;
+      if (tabIdToSave) p.activeTabId = tabIdToSave;
       const res = await saveProjectFile(p, fileHandle);
       if (!res.saved) return;
       setFileHandle(res.handle);
       setDirty(false);
       await saveAutosave(p);
-      notify("Proyecto guardado");
+      notify("Proyecto guardado" + (activeTab ? ` (${activeTab.name})` : ""));
     } catch (err) {
       notify("No se pudo guardar: " + ((err as any)?.message || "error desconocido"));
     }
@@ -138,14 +142,18 @@ export function TopBar({
   const handleSaveAs = async () => {
     try {
       const st = useDocumentStore.getState();
-      st.flushActiveScene();
+      // Pestaña realmente visible en la interfaz.
+      const tabIdToSave = activeTab?.id ?? st.project.activeTabId;
+      st.flushActiveScene(tabIdToSave);
+      if (tabIdToSave && st.project.activeTabId !== tabIdToSave) st.setActiveTab(tabIdToSave);
       const p = useDocumentStore.getState().project;
+      if (tabIdToSave) p.activeTabId = tabIdToSave;
       const res = await saveProjectFileAs(p);
       if (!res.saved) return;
       setFileHandle(res.handle);
       setDirty(false);
       await saveAutosave(p);
-      notify("Proyecto guardado como " + (res.handle?.name || `${p.meta.title || "proyecto"}.cdsgn`));
+      notify("Proyecto guardado como " + (res.handle?.name || `${p.meta.title || "proyecto"}.cdsgn`) + (activeTab ? ` · pestaña activa: ${activeTab.name}` : ""));
     } catch (err) {
       notify("No se pudo guardar: " + ((err as any)?.message || "error desconocido"));
     }

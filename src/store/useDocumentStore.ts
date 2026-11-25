@@ -37,7 +37,7 @@ interface Store {
   setActiveTab: (id: string) => void;
   updateTabScene: (id: string, scene: TabData["scene"]) => void;
   setExcalidrawApi: (tabId: string, api: any) => void;
-  flushActiveScene: () => void;
+  flushActiveScene: (tabId?: string) => void;
 
   addCatalog: () => void;
   removeCatalog: (id: string) => void;
@@ -60,7 +60,10 @@ export const useDocumentStore = create<Store>((set, get) => {
 
     initProject: (p) => {
       const proj = p ?? newProject();
-      if (!proj.activeTabId && proj.tabs.length) proj.activeTabId = proj.tabs[0].id;
+      if (!proj.tabs?.length) proj.tabs = newProject().tabs;
+      if (!proj.tabs.some((t) => t.id === proj.activeTabId)) {
+        proj.activeTabId = proj.tabs[0]?.id ?? "";
+      }
       if (!Array.isArray(proj.libraryItems)) proj.libraryItems = [];
       set({ project: proj, dirty: false });
       // Las librerías que venían en el archivo pasan a ser fijas también en este navegador.
@@ -131,13 +134,15 @@ export const useDocumentStore = create<Store>((set, get) => {
     },
 
     /** Vuelca el lienzo activo al proyecto antes de guardar o cambiar de espacio. */
-    flushActiveScene: () => {
+    flushActiveScene: (tabId?: string) => {
       const { project, excalidrawApis, updateTabScene } = get();
-      const api = excalidrawApis[project.activeTabId];
+      const id = tabId || project.activeTabId;
+      if (!id) return;
+      const api = excalidrawApis[id];
       if (!api) return;
       const appState = { ...(api.getAppState() || {}) };
       delete appState.collaborators;
-      updateTabScene(project.activeTabId, {
+      updateTabScene(id, {
         elements: api.getSceneElements() || [],
         appState,
         files: api.getFiles() || {},

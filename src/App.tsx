@@ -52,8 +52,12 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         const st = useDocumentStore.getState();
-        st.flushActiveScene();
+        const activeTab = st.project.tabs.find((t) => t.id === st.project.activeTabId);
+        const tabIdToSave = activeTab?.id ?? st.project.activeTabId;
+        st.flushActiveScene(tabIdToSave);
+        if (tabIdToSave && st.project.activeTabId !== tabIdToSave) st.setActiveTab(tabIdToSave);
         const p = useDocumentStore.getState().project;
+        if (tabIdToSave) p.activeTabId = tabIdToSave;
         const saveAs = e.shiftKey;
         const saving = saveAs ? saveProjectFileAs(p) : saveProjectFile(p, st.fileHandle);
         void saving.then((res) => {

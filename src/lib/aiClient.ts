@@ -1,7 +1,14 @@
 /* Cliente compatible con la API de chat de OpenAI (Gemini, OpenAI, OpenRouter, Ollama…) */
 
 import type { AiScene } from "./aiScene";
-import { DIAGRAM_SYSTEM_PROMPT, parseDiagramSpec, type DiagramSpec } from "./diagramSkeleton";
+import {
+  DIAGRAM_EDITOR_SYSTEM_PROMPT,
+  DIAGRAM_SYSTEM_PROMPT,
+  parseDiagramEdit,
+  parseDiagramSpec,
+  type DiagramEdit,
+  type DiagramSpec,
+} from "./diagramSkeleton";
 
 export type AiSettings = {
   preset: string;
@@ -296,4 +303,73 @@ export async function markdownToSkeleton(
   ];
   const text = await requestText(settings, model, parts, onStatus, DIAGRAM_SYSTEM_PROMPT);
   return parseDiagramSpec(text);
+}
+
+export type DiagramChatMessage = { role: "user" | "editor"; text: string };
+export type DiagramContextInput = { summary: string; image?: string };
+
+/** Una petición de la sesión: historial + lienzo actual -> operaciones de edición. */
+export async function editDiagram(
+  settings: AiSettings,
+  messages: DiagramChatMessage[],
+  context: DiagramContextInput,
+  onStatus?: (message: string) => void,
+): Promise<DiagramEdit> {
+  if (!settings.endpoint.trim()) throw new Error("Falta la URL del endpoint");
+  const model = normalizeModel(settings.model);
+  if (!model) throw new Error("Falta el nombre del modelo");
+
+  const trimmed = messages.slice(-8);
+  const history = trimmed
+    .map((m) => `${m.role === "user" ? "Usuario" : "Editor"}: ${m.text.trim().slice(0, 4000)}`)
+    .join("\n");
+  const textPart = [
+    "Historial de la sesión (el estado actual del lienzo se da después y prevalece sobre el historial):",
+    history || "(sin mensajes anteriores)",
+    "",
+    "--- Estado actual del lienzo (JSON) ---",
+    context.summary.slice(0, 40000),
+    "",
+    "Instrucción: interpreta el último mensaje del usuario y devuelve el JSON de operaciones descrito en las reglas.",
+  ].join("\n");
+
+  const parts: any[] = [{ type: "text", text: textPart }];
+  if (context.image) {
+    parts.push({ type: "image_url", image_url: { url: `data:image/png;base64,${context.image}` } });
+  }
+
+  const candidates =
+    settings.preset === "gemini"
+      ? [model, ...GEMINI_FALLBACK_MODELS.filter((m) => m !== model)]
+      : [model];
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      onStatus?.(`Interpretando la petición con ${candidate}…`);
+      const text = await requestText(settings, candidate, parts, onStatus, DIAGRAM_EDITOR_SYSTEM_PROMPT);
+      return parseDiagramEdit(text);
+    } catch (err) {
+      const status = (err as ApiError)?.status;
+      // Algunos modelos no aceptan imágenes: se reintenta solo con el JSON del lienzo.
+      if (status === 400 && parts.length > 1) {
+        try {
+          const text = await requestText(
+            settings,
+            candidate,
+            [{ type: "text", text: textPart }],
+            onStatus,
+            DIAGRAM_EDITOR_SYSTEM_PROMPT,
+          );
+          return parseDiagramEdit(text);
+        } catch {
+          // se continúa con la política de reintentos habitual
+        }
+      }
+      if (candidate !== model || (status !== 429 && status !== 503)) throw err;
+      lastError = err;
+      onStatus?.("Modelo saturado, probando un modelo alternativo…");
+    }
+  }
+  throw lastError;
 }
